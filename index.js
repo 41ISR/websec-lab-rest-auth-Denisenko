@@ -24,6 +24,7 @@ const auth = (req, res, next) => {
         next()
     } catch (error) {
         console.error(error)
+        res.status(401).json({error:"token error"})
     }
 }
 
@@ -85,7 +86,9 @@ app.post("/api/books", auth, (req,res) => {
 })
 
 app.get("/api/books/:id", (req,res) => {
-    
+    const data = db.prepare(`SELECT books.id, books.title, books.author, users.username AS added_by FROM books JOIN users ON books.user_id = users.id`).all()
+
+    res.status(200).json(data)
 })
 
 app.get("/api/books", (_,res) => {
@@ -104,8 +107,14 @@ app.delete("/api/books/:id", (req,res) => {
 
 // ------------
 
-app.post("/api/books/:id/reviews", (req,res) => {
-    
+app.post("/api/books/:id/reviews", auth, (req,res) => {
+    const {rating, comment} = req.body
+    const {id} = req.params
+
+    const query = db.prepare(`INSERT INTO rewiews (rating, comment, book_id, user_id) VALUES (?, ?, ?, ?)`)
+    const info = query.run(rating, comment, id, req.user.id)
+    const newRew = db.prepare(`SELECT * FROM rewiews WHERE ID = ?`).get(info.lastInsertRowid)
+    res.status(201).json(newRew)
 })
 
 app.get("/api/books/:id/reviews", (req,res) => {
