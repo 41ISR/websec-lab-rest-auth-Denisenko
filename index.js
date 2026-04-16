@@ -98,11 +98,74 @@ app.get("/api/books", (_,res) => {
 })
 
 app.put("/api/books/:id", (req,res) => {
-    
+    try {
+        const book = db.prepare("SELECT * FROM books WHERE id = ?").get(id);
+        if (!book) {
+            return res.status(404).json({ error: "Книга не найдена" });
+        }
+
+        if (book.createdBy !== req.user.id && req.user.role !== "admin") {
+            return res.status(403).json({ error: "Доступ запрещен" });
+        }
+
+        let updateQuery = "UPDATE book SET";
+        const params = [];
+        if (title) {
+            updateQuery += " title = ?,";
+            params.push(title);
+        }
+        if (author) {
+            updateQuery += " author = ?,";
+            params.push(author);
+        }
+        if (year) {
+            updateQuery += " year = ?,";
+            params.push(year);
+        }
+        if (genre) {
+            updateQuery += " genre = ?,";
+            params.push(genre);
+        }
+        if (description !== undefined) {
+            updateQuery += " description = ?,";
+            params.push(description);
+        }
+
+        if (params.length === 0) {
+            return res.status(400).json({ error: "Нет данных для обновления" });
+        }
+
+        updateQuery = updateQuery.slice(0, -1) + " WHERE id = ?";
+        params.push(id);
+
+        db.prepare(updateQuery).run(...params);
+        const updatedBook = db.prepare("SELECT * FROM books WHERE id = ?").get(id);
+        res.status(200).json(updatedBook);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Ошибка сервера" });
+    }
 })
 
 app.delete("/api/books/:id", (req,res) => {
-    
+    const { id } = req.params;
+
+    try {
+        const book = db.prepare("SELECT * FROM books WHERE id = ?").get(id);
+        if (!book) {
+            return res.status(404).json({ error: "Книга не найдена" });
+        }
+
+        if (book.createdBy !== req.user.id && req.user.role !== "admin") {
+            return res.status(403).json({ error: "Доступ запрещен" });
+        }
+
+        db.prepare("DELETE FROM books WHERE id = ?").run(id);
+        res.status(200).json({ message: "Книга удалена" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Ошибка сервера" });
+    }
 })
 
 // ------------
@@ -118,21 +181,63 @@ app.post("/api/books/:id/reviews", auth, (req,res) => {
 })
 
 app.get("/api/books/:id/reviews", (req,res) => {
-    
+    const data = db.prepare(`SELECT * FROM reviews JOIN books ON reviews.book_id = books.id`).all()
+
+    res.status(200).json(data)
 })
 
 app.delete("/api/:id/reviews", (req,res) => {
-    
+    const { id } = req.params;
+
+    try {
+        const review = db.prepare("SELECT * FROM reviews WHERE id = ?").get(id);
+        if (!review) {
+            return res.status(404).json({ error: "Книга не найдена" });
+        }
+
+        if (reviews.user_id !== req.user.id && req.user.role !== "admin") {
+            return res.status(403).json({ error: "Доступ запрещен" });
+        }
+
+        db.prepare("DELETE FROM reviews WHERE id = ?").run(id);
+        res.status(200).json({ message: "Отзыв удален" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Ошибка сервера" });
+    }
 })
 
 // --------------
 
 app.get("/api/admin/users", (req,res) => {
-    
+    if (req.user.role !== "admin") {
+        return res.status(403).json({ error: "Доступ запрещен" });
+    }
+    const data = db.prepare(`SELECT * FROM users`).all()
+
+    res.status(200).json(data)
 })
 
 app.delete("/api/admin/users/:id", (req,res) => {
-    
+    const { id } = req.params;
+
+    if (req.user.role !== "admin") {
+        return res.status(403).json({ error: "Доступ запрещен" });
+    }
+    try {
+        const review = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
+        if (!review) {
+            return res.status(404).json({ error: "Пользователь не найден" });
+        }
+
+        db.prepare("DELETE FROM users WHERE id = ?").run(id);
+        res.status(200).json({ message: "Пользователь удален" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Ошибка сервера" });
+    }
+
+    res.status(200).json(data)
 })
 
 app.listen("3000", () => {
